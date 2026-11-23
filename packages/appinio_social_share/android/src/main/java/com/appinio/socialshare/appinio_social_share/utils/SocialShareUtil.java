@@ -1,6 +1,7 @@
 package com.appinio.socialshare.appinio_social_share.utils;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.ComponentName;
@@ -16,16 +17,6 @@ import android.provider.Settings;
 import android.provider.Telephony;
 
 import androidx.core.content.FileProvider;
-
-import com.facebook.CallbackManager;
-import com.facebook.FacebookCallback;
-import com.facebook.FacebookException;
-import com.facebook.FacebookSdk;
-import com.facebook.share.Sharer;
-import com.facebook.share.model.ShareHashtag;
-import com.facebook.share.model.SharePhoto;
-import com.facebook.share.model.SharePhotoContent;
-import com.facebook.share.widget.ShareDialog;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -58,9 +49,6 @@ public class SocialShareUtil {
     private final String FACEBOOK_MESSENGER_PACKAGE = "com.facebook.orca";
     private final String FACEBOOK_MESSENGER_LITE_PACKAGE = "com.facebook.mlite";
     private final String SMS_DEFAULT_APPLICATION = "sms_default_application";
-
-
-    private static CallbackManager callbackManager;
 
 
     public String shareToWhatsApp(String imagePath, String msg, Context context) {
@@ -239,39 +227,24 @@ public class SocialShareUtil {
 
 
     public void shareToFacebook(List<String> filePaths, String text, Activity activity, MethodChannel.Result result) {
-        FacebookSdk.fullyInitialize();
-        FacebookSdk.setApplicationId(getFacebookAppId(activity));
-        callbackManager = callbackManager == null ? CallbackManager.Factory.create() : callbackManager;
-        ShareDialog shareDialog = new ShareDialog(activity);
-        shareDialog.registerCallback(callbackManager, new FacebookCallback<Sharer.Result>() {
-            @Override
-            public void onSuccess(Sharer.Result result1) {
-                System.out.println("---------------onSuccess");
+        try {
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            Uri fileUri = FileProvider.getUriForFile(activity, activity.getPackageName() + ".provider", new File(filePaths.get(0)));
+            shareIntent.setType("image/*");
+            shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
+            shareIntent.putExtra(Intent.EXTRA_TEXT, text);
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            shareIntent.setPackage(FACEBOOK_PACKAGE);
+            if (shareIntent.resolveActivity(activity.getPackageManager()) != null) {
+                activity.startActivity(shareIntent);
                 result.success(SUCCESS);
+            } else {
+                result.success(ERROR_APP_NOT_AVAILABLE);
             }
-
-            @Override
-            public void onCancel() {
-                result.success(ERROR_CANCELLED);
-            }
-
-            @Override
-            public void onError(FacebookException error) {
-                System.out.println("---------------onError");
-                result.success(error.getLocalizedMessage());
-            }
-        });
-        List<SharePhoto> sharePhotos = new ArrayList<>();
-        for (int i = 0; i < filePaths.size(); i++) {
-            Uri fileUri = FileProvider.getUriForFile(activity, activity.getPackageName() + ".provider", new File(filePaths.get(i)));
-            sharePhotos.add(new SharePhoto.Builder().setImageUrl(fileUri).build());
-        }
-        SharePhotoContent content = new SharePhotoContent.Builder()
-                .setShareHashtag(new ShareHashtag.Builder().setHashtag(text).build())
-                .setPhotos(sharePhotos)
-                .build();
-        if (ShareDialog.canShow(SharePhotoContent.class)) {
-            shareDialog.show(content);
+        } catch (ActivityNotFoundException e) {
+            result.success(ERROR_APP_NOT_AVAILABLE);
+        } catch (Exception e) {
+            result.success(e.getLocalizedMessage());
         }
     }
 

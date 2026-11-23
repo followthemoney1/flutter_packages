@@ -1,6 +1,4 @@
 import Photos
-import FBSDKCoreKit
-import FBSDKShareKit
 import Social
 import MobileCoreServices
 
@@ -302,31 +300,30 @@ public class ShareUtil{
     
     
     
-    func shareToFacebookPost(args : [String: Any?],result: @escaping FlutterResult, delegate: SharingDelegate) {
+    func shareToFacebookPost(args : [String: Any?],result: @escaping FlutterResult) {
         let message = args[self.argMessage] as? String
         let imagePaths = args[self.argImagePaths] as? [String]
-        
-        let content = SharePhotoContent()
-        var photos : [SharePhoto] = []
-        for image in imagePaths! {
-            let photo = SharePhoto(image: UIImage.init(contentsOfFile: image)!, isUserGenerated: true)
-            photos.append(photo)
+        var data : [Any] = [message!];
+        if imagePaths != nil{
+            for image in imagePaths!{
+                data.append(UIImage.init(contentsOfFile: image)!)
+            }
         }
-        content.photos = photos
-        content.hashtag = Hashtag(message!)
-        let dialog = ShareDialog(
-            viewController: UIApplication.shared.windows.first!.rootViewController,
-            content: content,
-            delegate: delegate
-        )
-        do {
-            try dialog.validate()
-        } catch {
-           result(ERROR)
+        // No canOpenURL gate: the system share menu natively handles apps that are not installed.
+        let activityViewController = UIActivityViewController(activityItems: data, applicationActivities: nil)
+        if let topViewController = UIApplication.topViewController() {
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                activityViewController.modalPresentationStyle = .popover
+                let popver = activityViewController.popoverPresentationController
+                popver?.permittedArrowDirections = []
+                popver?.sourceRect = CGRect(x: topViewController.view.bounds.midX, y: topViewController.view.bounds.midY, width: 0, height: 0)
+                popver?.sourceView = topViewController.view
+            }
+            topViewController.present(activityViewController, animated: true, completion: nil)
+            result(SUCCESS)
+        } else {
+            result("No Share Top Controller")
         }
-        dialog.show()
-        result(self.SUCCESS)
-        
     }
     
     
@@ -569,7 +566,7 @@ public class ShareUtil{
     }
     
     
-    public func shareImageToWhatsApp(args : [String: Any?],result: @escaping FlutterResult, delegate: SharingDelegate) {
+    public func shareImageToWhatsApp(args : [String: Any?],result: @escaping FlutterResult) {
       let imagePath = args[self.argImagePath] as? String
 
       guard let imagePath = imagePath else {
